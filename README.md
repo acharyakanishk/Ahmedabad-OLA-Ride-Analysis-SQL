@@ -1,5 +1,4 @@
 # Ahmedabad-OLA-Ride-Analysis-SQL
-# OLA Ride Data Analysis (SQL)
 
 ## Project Overview
 This project analyzes ride-booking data to understand revenue trends,
