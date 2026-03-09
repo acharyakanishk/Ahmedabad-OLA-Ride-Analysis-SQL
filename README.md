@@ -1,6 +1,21 @@
 # Ahmedabad-OLA-Ride-Analysis-SQL
-Project Goal: Analyze 25,000 rides in Ahmedabad to optimize revenue and reduce cancellations.
+# OLA Ride Data Analysis (SQL)
 
-Tech Stack: PostgreSQL / MySQL.
+## Project Overview
+This project analyzes ride-booking data to understand revenue trends,
+ride demand, cancellation patterns, and vehicle performance.
 
-Key Question Answered: "Which route generated the highest revenue?" and "What is the primary reason for driver cancellations?".
+## Tools Used
+SQL
+
+## Key Analysis
+- Revenue by vehicle type
+- Daily revenue trends
+- Most popular pickup locations
+- Cancellation analysis
+- Repeat customers
+
+
+## Dataset
+OLA ride booking dataset containing ride details, booking status,
+locations, vehicle types, and ratings.
