@@ -1,275 +1,259 @@
---Basic SQL analysis
-
--- 1. Retrieve all successful bookings:
+-- 1. Retrieve all successful bookings.
 SELECT
 	*
 FROM
-	AHMEDABAD_RIDES
+	BOOKINGS
 WHERE
-	BOOKING_STATUS = 'Success';
--- 2. Find the average ride distance for each vehicle type:
+	"Booking Status" = 'Success';
+	
+-- 2. Find total number of rides.
 SELECT
-	VEHICLE_TYPE,
-	AVG(RIDE_DISTANCE) AS AVG_DISTANCE
+	COUNT(*) AS TOTAL_RIDES
 FROM
-	AHMEDABAD_RIDES
+	BOOKINGS;
+	
+-- 3. Calculate total revenue from successful rides.
+SELECT
+	SUM("Booking Value") AS TOTAL_REVENUE
+FROM
+	BOOKINGS
+WHERE
+	"Booking Status" = 'Success';
+	
+-- 4. Find average ride distance.
+SELECT
+	AVG("Ride Distance") AS AVG_DISTANCE
+FROM
+	BOOKINGS ;
+	
+-- 5. Count rides by booking status.
+SELECT
+	"Booking Status",
+	COUNT(*) AS TOTAL_RIDES
+FROM
+	BOOKINGS
 GROUP BY
-	VEHICLE_TYPE;
--- 3. Get the total number of cancelled rides by customers:
-SELECT
-	COUNT(*) AS CUSTOMER_CANCELLED_RIDES
-FROM
-	AHMEDABAD_RIDES
-WHERE
-	BOOKING_STATUS = 'Cancelled by Customer';
--- 4. List the top 5 customers who booked the highest number of rides:
+	"Booking Status";
+	
+-- 6. Find number of rides per vehicle type.
 SELECT
 	COUNT(*) AS TOTAL_RIDES,
-	CUSTOMER_ID
+	"Vehicle Type"
 FROM
-	AHMEDABAD_RIDES
+	BOOKINGS
 GROUP BY
-	CUSTOMER_ID
+	"Vehicle Type"
+ORDER BY
+	TOTAL_RIDES DESC;
+	
+-- 7. Find total revenue by vehicle type
+SELECT 
+    "Vehicle Type",
+    SUM("Booking Value") AS total_revenue
+FROM bookings b
+WHERE "Booking Status" = 'Success'
+GROUP BY "Vehicle Type"
+ORDER BY total_revenue DESC;
+
+-- 8. Join bookings and ride_metrics to get ride details with ratings.
+SELECT
+	B."Booking ID",
+	B."Vehicle Type",
+	B."Booking Value",
+	R."Driver Ratings",
+	R."Customer Rating"
+FROM
+	BOOKINGS B
+	JOIN RIDE_METRICS R ON B."Booking ID" = R."Booking ID"
+	
+-- 9. Join bookings and cancellations to find all cancelled rides with reasons.
+SELECT 
+    b."Booking ID",
+    b."Booking Status",
+    c."Reason for cancelling by Customer",
+    c."Driver Cancel Reason"
+FROM bookings b
+LEFT JOIN cancellations c
+ON b."Booking ID" = c."Booking ID"
+WHERE b."Booking Status" LIKE 'Cancelled%';
+
+-- 10. Get average driver rating for each vehicle type.
+SELECT
+	b."Vehicle Type",
+    Round(AVG(r."Driver Ratings"),2) AS avg_driver_rating
+FROM bookings b
+LEFT JOIN ride_metrics r
+ON b."Booking ID" = r."Booking ID"
+GROUP BY b."Vehicle Type";
+
+-- 11. Find number of cancellations by pickup location.
+SELECT 
+    b."Pickup Location",
+    COUNT(*) AS total_cancellations
+FROM bookings b
+LEFT JOIN cancellations c
+ON b."Booking ID" = c."Booking ID"
+WHERE b."Booking Status" <> 'Success'
+GROUP BY b."Pickup Location"
+ORDER BY total_cancellations DESC;
+
+-- 12. Get ride details with both ratings and cancellation reasons using multiple joins.
+SELECT 
+    b."Booking ID",
+    b."Booking Status",
+    b."Vehicle Type",
+    b."Booking Value",
+    r."Driver Ratings",
+    r."Customer Rating",
+    c."Driver Cancel Reason",
+    c."Reason for cancelling by Customer"
+FROM bookings b
+LEFT JOIN ride_metrics r
+ON b."Booking ID" = r."Booking ID"
+LEFT JOIN cancellations c
+ON b."Booking ID" = c."Booking ID";
+
+
+-- 13. Rank customers based on total number of rides.
+SELECT 
+    "Customer ID",
+    total_rides,
+    RANK() OVER (ORDER BY total_rides DESC) AS rnk
+FROM (
+    SELECT 
+        "Customer ID",
+        COUNT("Booking ID") AS total_rides
+    FROM bookings
+    GROUP BY "Customer ID"
+) t;
+
+-- 14. Find top 5 customers using window function.
+SELECT
+	*
+FROM
+	(
+		SELECT
+			"Customer ID",
+			SUM("Booking Value") AS TOTAL_SPENT,
+			DENSE_RANK() OVER (
+				ORDER BY
+					SUM("Booking Value") DESC
+			) AS RNK
+		FROM
+			BOOKINGS
+		WHERE
+			"Booking Status" = 'Success'
+		GROUP BY
+			"Customer ID"
+	)
+WHERE
+	RNK <= 5;
+	
+-- 15. Calculate running total of revenue by date.
+SELECT "Date",
+       SUM("Booking Value") AS daily_revenue,
+       SUM(SUM("Booking Value")) OVER (ORDER BY "Date") AS running_total
+FROM bookings
+WHERE "Booking Status" = 'Success'
+GROUP BY "Date";
+
+-- 16. Find highest booking value ride per day.
+SELECT *
+FROM (
+    SELECT "Date", "Booking ID", "Booking Value",
+           RANK() OVER (PARTITION BY "Date" ORDER BY "Booking Value" DESC) AS rnk
+    FROM bookings
+) t
+WHERE rnk = 1;
+
+-- 17. Calculate average ride value partitioned by vehicle type.
+SELECT "Vehicle Type", 
+       ROUND(AVG("Booking Value"), 2) AS avg_booking_value
+FROM bookings
+GROUP BY "Vehicle Type";
+
+-- 18. Find rides with booking value greater than overall average.
+SELECT *
+FROM bookings
+WHERE "Booking Value" > (
+    SELECT AVG("Booking Value")
+    FROM bookings
+);
+
+-- 19. Get vehicle type with highest total revenue.
+SELECT "Vehicle Type"
+FROM bookings
+WHERE "Booking Status" = 'Success'
+GROUP BY "Vehicle Type"
+ORDER BY SUM("Booking Value") DESC
+LIMIT 1;
+
+-- 20 Find customers who never cancelled a ride.
+SELECT DISTINCT "Customer ID"
+FROM bookings
+WHERE "Customer ID" NOT IN (
+    SELECT "Customer ID"
+    FROM bookings
+    WHERE "Booking Status" <> 'Success'
+);
+
+-- 21. Categorize rides as Short, Medium, Long based on distance.
+SELECT "Booking ID",
+CASE 
+    WHEN "Ride Distance" < 5 THEN 'Short'
+    WHEN "Ride Distance" < 15 THEN 'Medium'
+    ELSE 'Long'
+END AS distance_type
+FROM bookings;
+
+-- 22.Categorize ratings into Good, Average, Poor.
+SELECT "Booking ID",
+CASE 
+    WHEN "Driver Ratings" >= 4 THEN 'Good'
+    WHEN "Driver Ratings" >= 3 THEN 'Average'
+    ELSE 'Poor'
+END AS rating_category
+FROM ride_metrics;
+
+-- 23 List the top 5 customers who booked the highest number of rides:
+SELECT
+	COUNT(*) AS TOTAL_RIDES,
+	"Customer ID"
+FROM
+	bookings
+GROUP BY
+	"Customer ID"
 ORDER BY
 	TOTAL_RIDES DESC
 LIMIT
 	5;
--- 5. Get the number of rides cancelled by drivers due to personal and car-related issues:
+
+-- 24.Find the maximum and minimum driver ratings for Prime Sedan bookings:
 SELECT
-	COUNT(*) AS Driver_CANCELLED_RIDES
+	MAX(r."Driver Ratings"),
+	MIN(r."Driver Ratings")
 FROM
-	AHMEDABAD_RIDES
+ ride_metrics r left join bookings b on r."Booking ID" = b."Booking ID"
 WHERE
-	Driver_cancel_reason = 'Persol & Car related issues';
+	b."Vehicle Type" = 'Prime Sedan';
 
--- 6. Find the maximum and minimum driver ratings for Prime Sedan bookings:
+-- 25. Repeat Customers
 SELECT
-	MAX(DRIVER_RATINGS),
-	MIN(DRIVER_RATINGS)
+	"Customer ID",
+	COUNT("Booking ID") AS TOTAL_RIDES
 FROM
-	AHMEDABAD_RIDES
-WHERE
-	VEHICLE_TYPE = 'Prime Sedan';
-
--- 7. Find the average customer rating per vehicle type:
-SELECT
-	VEHICLE_TYPE,
-	AVG(CUSTOMER_RATING) AS AVG_RATING
-FROM
-	AHMEDABAD_RIDES
+     bookings
 GROUP BY
-	VEHICLE_TYPE;
--- 8. Calculate the total booking value of rides completed successfully:
-SELECT
-	SUM(BOOKING_VALUE) AS TOTAL_REVENUE
-FROM
-	AHMEDABAD_RIDES
-WHERE
-	BOOKING_STATUS = 'Success';
--- 9. List all incomplete rides along with the reason:
-SELECT
-	BOOKING_ID,
-	INCOMPLETE_RIDES_REASON
-FROM
-	AHMEDABAD_RIDES
-WHERE
-	BOOKING_STATUS = 'Incomplete';
-
---Advance SQL Analysis
-
--- 📊 1. Revenue by Vehicle Type
-
--- Find total booking value generated by each vehicle type and sort from highest to lowest revenue.
-SELECT
-	SUM(BOOKING_VALUE) AS TOTAL_VALUE,
-	VEHICLE_TYPE
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	VEHICLE_TYPE
-ORDER BY
-	TOTAL_VALUE DESC;
-
--- 📉 2. Cancellation Rate per Vehicle Type
-
--- Calculate percentage of rides cancelled by customers for each vehicle type.
-
-
--- Shows business thinking.
-SELECT vehicle_type,
-       COUNT(*) AS total_rides,
-       SUM(cancelled_rides_by_customer) AS cancelled_rides,
-       ROUND(
-           SUM(cancelled_rides_by_customer) * 100.0 / COUNT(*),
-           2
-       ) AS cancellation_rate_percent
-FROM ahmedabad_rides
-GROUP BY vehicle_type;
--- 🏙 3. Most Popular Pickup Locations
-
--- Find top 5 pickup locations with the highest number of bookings.
-SELECT
-	PICKUP_LOCATION,
-	COUNT(BOOKING_ID) AS TOTAL_BOOKINGS
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	PICKUP_LOCATION
-ORDER BY
-	TOTAL_BOOKINGS DESC
-LIMIT
-	5;
-
--- 🚗 4. Average Ride Distance per Vehicle Type
-
--- (You may already have similar but improve it)
-
--- Also include total rides per vehicle type.
-SELECT
-	COUNT(BOOKING_ID) AS TOTAL_RIDES,
-	AVG(RIDE_DISTANCE) AS AVG_DISTANCE,
-	VEHICLE_TYPE
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	VEHICLE_TYPE;
--- ⏱ 5. Average Customer Waiting Time
-
--- Calculate average CTAT (Customer Time to Arrival) per vehicle type.
-
--- Helps analyze service quality.
-SELECT
-	AVG(AVG_CTAT) AS AVG_TIME,
-	VEHICLE_TYPE
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	VEHICLE_TYPE;
--- 🚫 6. Most Common Driver Cancellation Reason
-
--- Find top 3 driver cancellation reasons.
-SELECT
-	DRIVER_CANCEL_REASON,
-	COUNT(*) AS TOTAL_CANCELLATIONS
-FROM
-	AHMEDABAD_RIDES
-WHERE
-	CANCELLED_RIDES_BY_DRIVER = 1
-GROUP BY
-	DRIVER_CANCEL_REASON
-ORDER BY
-	TOTAL_CANCELLATIONS DESC
-LIMIT
-	3;
--- 📍 7. Route With Highest Revenue
-
--- Find pickup location → drop location pair that generated highest total booking value.
-SELECT
-	PICKUP_LOCATION,
-	DROP_LOCATION,
-	SUM(BOOKING_VALUE) AS TOTAL_REVENUE
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	PICKUP_LOCATION,
-	DROP_LOCATION
-ORDER BY
-	TOTAL_REVENUE DESC
-LIMIT
-	2;
-
--- ⭐ 8. Vehicle Type With Highest Customer Rating
-
--- Find vehicle type with highest average customer rating.
-SELECT
-	VEHICLE_TYPE,
-	AVG(CUSTOMER_RATING) AS AVG_CUSTOMER_RATING
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	VEHICLE_TYPE
-ORDER BY
-	AVG_CUSTOMER_RATING DESC
-LIMIT
-	2;
--- 🚕 9. Repeat Customers
-
--- Find customers who booked more than 3 rides.
-
--- Good for retention analysis.
-SELECT
-	CUSTOMER_ID,
-	COUNT(BOOKING_ID) AS TOTAL_RIDES
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	CUSTOMER_ID
+	"Customer ID"
 HAVING
-	COUNT(BOOKING_ID) > 3
+	COUNT("Booking ID") > 3
 ORDER BY
 	TOTAL_RIDES DESC;
--- 📅 10. Daily Revenue Trend
 
--- Show total booking value per date.
-
--- Useful for trend analysis.
-SELECT
-	DATE,
-	SUM(BOOKING_VALUE) AS DAILY_REVENUE
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	DATE
-ORDER BY
-	DATE;
-
-Select * From ahmedabad_rides;
--- 📊 11. Completion Rate
-
--- Calculate percentage of rides successfully completed.
-
--- completion_rate = successful_rides / total_rides
+-- 26. Peak Hour
 SELECT 
-    COUNT(*) AS total_rides,
-    SUM(CASE WHEN booking_status = 'Success' THEN 1 ELSE 0 END) AS successful_rides,
-    ROUND(
-        SUM(CASE WHEN booking_status = 'Success' THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
-        2
-    ) AS completion_rate_percent
-FROM ahmedabad_rides;
--- 🚗 12. Longest Ride
-
--- Find top 5 rides with highest ride distance.
-SELECT
-	*
-FROM
-	AHMEDABAD_RIDES
-ORDER BY
-	RIDE_DISTANCE DESC
-LIMIT
-	5;
--- ⚠ 13. Incomplete Ride Analysis
-
--- Find top reasons for incomplete rides.
-SELECT
-	INCOMPLETE_RIDES_REASON,
-	COUNT(*) AS TOTAL_INCOMPLETE_RIDES
-FROM
-	AHMEDABAD_RIDES
-WHERE
-	INCOMPLETE_RIDES = 1
-GROUP BY
-	INCOMPLETE_RIDES_REASON
-ORDER BY
-	TOTAL_INCOMPLETE_RIDES DESC;
-
--- 💰 14. Average Revenue per Ride
-
--- Calculate average booking value per vehicle type.
-SELECT
-	AVG(BOOKING_VALUE) AS AVG_VALUE,
-	VEHICLE_TYPE
-FROM
-	AHMEDABAD_RIDES
-GROUP BY
-	VEHICLE_TYPE;
+    EXTRACT(HOUR FROM "Time") AS hour,
+    COUNT(*) AS total_rides
+FROM bookings
+GROUP BY hour
+ORDER BY total_rides DESC;
